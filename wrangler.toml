@@ -1,0 +1,37 @@
+# Deploy config for the backlog-sync Worker.
+#
+# Cloudflare Workers Builds runs `npx wrangler deploy` from the repository root
+# on every push, so this file is what tells it which script to publish and what
+# to bind to it.
+#
+# The token value lives in the account's Secrets Store, not in this file. Only
+# the reference is here; `wrangler deploy` replaces [vars] but never touches the
+# secret itself.
+#
+# SYNC_TOKEN is what permits reading and writing the stored log, and it is
+# carried inside the encrypted app — so unlocking the site is what gets you to
+# it. It is not a second security boundary: the passphrase is the boundary.
+
+name = "backlog-sync"
+main = "worker/backlog-sync.js"
+compatibility_date = "2026-08-19"
+
+# Only this origin may call the Worker from a browser. Scheme and host only —
+# no path, no trailing slash. Change it if you put the site on your own domain.
+[vars]
+ORIGIN = "https://sen2008.github.io"
+
+# The log lives here. `id` is the KV namespace's ID from
+# Storage & Databases -> KV. Replace it with your own.
+[[kv_namespaces]]
+binding = "BACKLOG"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+# Secrets Store. `secret_name` must match what the secret is called in the
+# store; the Worker reads it through .get() and also accepts a plain Worker
+# secret, so either wiring works. If you set SYNC_TOKEN as an ordinary Worker
+# secret in the dashboard instead, delete this block.
+[[secrets_store_secrets]]
+binding = "SYNC_TOKEN"
+store_id = "REPLACE_WITH_YOUR_SECRETS_STORE_ID"
+secret_name = "SYNC_TOKEN"

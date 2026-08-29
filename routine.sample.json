@@ -1,0 +1,17 @@
+[
+  { "id": "p_scapret", "name": "Seated scapular retraction", "dose": "10 × 5s", "zone": "thoracic", "track": "reset", "src": "pt", "cue": "Blades back and down, ribs stay put.", "active": true },
+  { "id": "p_cervret", "name": "Seated passive cervical retraction", "dose": "10 × 5s", "zone": "neck", "track": "reset", "src": "pt", "cue": "Two fingers on the chin, glide straight back.", "active": true },
+  { "id": "p_tlext", "name": "Seated thoracic ext. + pec stretch", "dose": "2 × 8", "zone": "thoracic", "track": "reset", "src": "pt", "cue": "Over the chair back, open the chest, breathe out at the top.", "active": true },
+  { "id": "p_openbook", "name": "Sidelying thoracic rotation (open book)", "dose": "8 each side", "zone": "thoracic", "track": "reset", "src": "pt", "cue": "Knees stacked, rotate from the ribs.", "active": true },
+  { "id": "p_fallout", "name": "Bent knee fallouts", "dose": "2 × 10 each", "zone": "core", "track": "reset", "src": "pt", "cue": "Pelvis dead still as the knee drops.", "active": true },
+  { "id": "p_march", "name": "Supine march", "dose": "2 × 10 each", "zone": "core", "track": "reset", "src": "pt", "cue": "Low back flat the whole time.", "active": true },
+
+  { "id": "l_row", "name": "Band row", "dose": "3 × 10", "zone": "thoracic", "track": "load", "src": "add", "cue": "Anchor at chest height. Elbows past the ribs, one-second pause.", "active": true, "load": true },
+  { "id": "l_facepull", "name": "Band face pull", "dose": "3 × 12", "zone": "thoracic", "track": "load", "src": "add", "cue": "Pull to the forehead, knuckles back. Lower trap and rear delt.", "active": true, "load": true },
+  { "id": "l_prone_y", "name": "Prone Y raise", "dose": "3 × 10", "zone": "thoracic", "track": "load", "src": "add", "cue": "Face down, thumbs up, arms at 45°.", "active": true, "load": true },
+  { "id": "l_birddog", "name": "Bird dog", "dose": "3 × 8 each", "zone": "core", "track": "load", "src": "add", "cue": "Hips level, reach long not high.", "active": true, "load": true },
+  { "id": "l_deadbug", "name": "Dead bug", "dose": "3 × 8 each", "zone": "core", "track": "load", "src": "add", "cue": "Low back stays flat. Add a band pull overhead when easy.", "active": true, "load": true },
+  { "id": "l_sideplank", "name": "Side plank (knees ok)", "dose": "3 × 20s each", "zone": "core", "track": "load", "src": "add", "cue": "Frontal plane. Stack the shoulders.", "active": true, "load": true },
+  { "id": "l_carry", "name": "One-arm band hold", "dose": "3 × 25s each", "zone": "carry", "track": "load", "src": "add", "cue": "Band in one hand, resist the side-bend.", "active": false, "load": true },
+  { "id": "l_hinge", "name": "Band hip hinge / RDL", "dose": "3 × 10", "zone": "carry", "track": "load", "src": "add", "cue": "Hinge from the hip under tension.", "active": false, "load": true }
+]

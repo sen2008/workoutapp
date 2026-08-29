@@ -1,0 +1,75 @@
+name: Publish tracker
+
+# Deploys the encrypted site in docs/ to GitHub Pages.
+#
+# The build itself happens on your machine, not here: this repository is public
+# and holds no readable copy of the routine or the log, so there is nothing for
+# CI to encrypt. Run ./publish.sh locally and this publishes what it commits.
+#
+# Nothing secret is needed. The passphrase never reaches GitHub.
+
+on:
+  push:
+    branches: [main]
+    # Only a change to the encrypted site republishes. Editing this workflow
+    # does not redeploy content; use workflow_dispatch for that.
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than publishing a half-built site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # This repository is public, so a readable docs/ would put the routine —
+      # and the Worker's token with it — on the open internet. Refuse instead.
+      - name: Refuse to publish anything readable
+        run: |
+          if [ ! -s docs/app.bin ] || [ ! -s docs/index.html ]; then
+            echo "::error::docs/ is missing or incomplete. Run ./publish.sh and commit docs/."
+            exit 1
+          fi
+          # Markers that only ever appear in the built app, never in ciphertext.
+          if grep -qa 'DOCTYPE html\|createRoot\|BACKLOG_SYNC\|Backlog' docs/app.bin; then
+            echo "::error::docs/app.bin is not encrypted. Refusing to publish."
+            exit 1
+          fi
+          # The unlock page is meant to be readable. Nothing else is.
+          if find docs -type f ! -name 'index.html' ! -name '.nojekyll' \
+               ! -name '*.bin' -print -quit | grep -q .; then
+            echo "::error::docs/ contains files that are neither the unlock page nor ciphertext:"
+            find docs -type f ! -name 'index.html' ! -name '.nojekyll' ! -name '*.bin'
+            exit 1
+          fi
+          # The unlock page carries a salt and an iteration count, never the
+          # Worker's address or token — those are injected into app.bin, inside
+          # the ciphertext. It reads window.BACKLOG_SYNC after the app boots,
+          # so a reference is expected; an assignment or a token is not.
+          if grep -q 'BACKLOG_SYNC *=\|"token"\|read_token' docs/index.html; then
+            echo "::error::docs/index.html carries the Worker config. Refusing to publish."
+            exit 1
+          fi
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

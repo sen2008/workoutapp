@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#14242B">
+<title>Backlog</title>
+<style>
+:root{
+  --ground:#14242B;
+  --panel:#1A2E36;
+  --rail:rgba(231,235,236,.14);
+  --ink:#E7EBEC;
+  --teal:#2F6F6B;
+  --rust:#A8563C;
+  --f-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --f-disp:'Barlow Condensed','Arial Narrow',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;min-height:100%}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--f-mono);
+  -webkit-font-smoothing:antialiased;
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.gate{width:100%;max-width:360px}
+.spine{display:flex;gap:4px;margin-bottom:22px}
+.spine i{flex:1;height:18px;border-radius:2px;background:rgba(231,235,236,.09);display:block}
+.spine i:nth-child(3),.spine i:nth-child(6),.spine i:nth-child(7),.spine i:nth-child(11){background:var(--teal)}
+h1{margin:0;font-family:var(--f-disp);font-size:52px;font-weight:600;line-height:.9;letter-spacing:.01em}
+.sub{margin:10px 0 26px;font-size:12px;line-height:1.6;color:rgba(231,235,236,.55)}
+label{display:block;margin-bottom:7px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(231,235,236,.5)}
+input{
+  width:100%;background:rgba(231,235,236,.06);
+  border:1px solid var(--rail);border-radius:3px;
+  padding:11px 12px;font-size:14px;
+}
+input:disabled{opacity:.55}
+button{
+  width:100%;margin-top:12px;background:var(--teal);border:0;border-radius:3px;
+  padding:11px 12px;font-size:11px;font-weight:500;
+  letter-spacing:.18em;text-transform:uppercase;color:#FAFAF8;cursor:pointer;
+}
+button:hover:not(:disabled){background:#3A827D}
+button:disabled{cursor:default;opacity:.55}
+.msg{margin:16px 0 0;min-height:1.4em;font-size:11.5px;line-height:1.45;color:rgba(231,235,236,.55)}
+.msg.err{color:#D97A66}
+.msg.busy::after{
+  content:"";display:inline-block;width:6px;height:6px;margin-left:7px;
+  border-radius:50%;background:var(--teal);vertical-align:middle;
+  animation:pulse .9s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.msg.busy::after{animation:none;opacity:.7}}
+.note{
+  margin:24px 0 0;padding-top:16px;border-top:1px solid var(--rail);
+  font-size:11px;line-height:1.6;color:rgba(231,235,236,.38);
+}
+</style>
+</head>
+<body>
+
+<main class="gate">
+  <div class="spine" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <h1>BACKLOG</h1>
+  <p class="sub">The log is encrypted. Enter the passphrase to open it.</p>
+
+  <form id="form">
+    <label for="pw">Passphrase</label>
+    <input id="pw" type="password" autocomplete="current-password"
+           spellcheck="false" autocapitalize="off" autofocus>
+    <button id="go" type="submit">Unlock</button>
+  </form>
+
+  <p id="msg" class="msg" role="status" aria-live="polite"></p>
+
+  <p class="note">Decryption happens in this browser. The passphrase is never
+     sent anywhere, and neither the site nor the server that holds your sessions
+     ever sees anything but ciphertext.</p>
+</main>
+
+<script>
+/*
+ * Everything here lives inside this function on purpose. document.open() clears
+ * the document but not the global lexical scope, so any top-level const or let
+ * declared here would survive into the app and collide with its own
+ * declarations — a SyntaxError that stops the app's script dead. window
+ * properties are the only thing deliberately handed across; see window.VAULT.
+ */
+(function(){
+"use strict";
+
+var CONFIG = {
+  salt: /*__SALT__*/"",
+  iterations: /*__ITERATIONS__*/0,
+  app: "app.bin"
+};
+
+/* The last blob this browser held, so a phone with no signal still opens the
+   log and can still log a session. Ciphertext: useless without the passphrase,
+   which is why it is safe to leave sitting in localStorage. */
+var CACHE = "backlog:blob";
+
+var $ = function(s){ return document.querySelector(s); };
+var form = $("#form"), pw = $("#pw"), go = $("#go"), msg = $("#msg");
+
+function say(text, kind){
+  msg.textContent = text;
+  msg.classList.toggle("err", kind === "err");
+  msg.classList.toggle("busy", kind === "busy");
+}
+
+/* Let the browser paint the status line before a blocking crypto step. */
+function painted(){
+  return new Promise(function(r){ requestAnimationFrame(function(){ requestAnimationFrame(r); }); });
+}
+
+function unhex(h){ return Uint8Array.from((h || "").match(/../g) || [], function(b){ return parseInt(b, 16); }); }
+
+async function deriveKey(passphrase, saltHex){
+  var base = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name:"PBKDF2", salt:unhex(saltHex || CONFIG.salt), iterations:CONFIG.iterations, hash:"SHA-256" },
+    base, { name:"AES-GCM", length:256 }, false, ["decrypt", "encrypt"]);
+}
+
+/* Every payload is a 12-byte nonce followed by AES-256-GCM ciphertext. */
+async function decrypt(key, buffer){
+  var bytes = new Uint8Array(buffer);
+  return crypto.subtle.decrypt({ name:"AES-GCM", iv:bytes.subarray(0, 12) }, key, bytes.subarray(12));
+}
+
+async function encrypt(key, plaintext){
+  var iv = crypto.getRandomValues(new Uint8Array(12));
+  var body = new Uint8Array(await crypto.subtle.encrypt({ name:"AES-GCM", iv }, key, plaintext));
+  var out = new Uint8Array(iv.length + body.length);
+  out.set(iv); out.set(body, iv.length);
+  return out;
+}
+
+/* Chunked: String.fromCharCode(...bytes) overflows the stack on a large payload. */
+function b64(bytes){
+  var s = "";
+  for(var i = 0; i < bytes.length; i += 0x8000){
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+}
+function unb64(str){ return Uint8Array.from(atob(str), function(c){ return c.charCodeAt(0); }); }
+
+/*
+ * Deliberately the default cache mode. Rebuilding under a new passphrase changes
+ * the salt in this page and app.bin with it; a forced cache hit would pair a
+ * fresh salt with a stale app.bin and report a perfectly good passphrase as
+ * wrong. Revalidating against the ETag keeps the two in step.
+ */
+async function grab(url){
+  var res = await fetch(url);
+  if(!res.ok) throw new Error(res.status + " " + res.statusText);
+  return res.arrayBuffer();
+}
+
+/*
+ * Handed to the app on window.VAULT once the passphrase is known. The app never
+ * sees the key: it passes plain objects in and gets plain objects back, and
+ * everything that leaves this browser is sealed on the way past.
+ */
+function makeVault(key){
+  var version = 0;        // what the Worker last confirmed
+  var hooks = {};         // merge + onMerged, registered by the app
+  var cfg = null;         // resolved from window.BACKLOG_SYNC on first use
+
+  function sync(){
+    if(cfg === null) cfg = (window.BACKLOG_SYNC && window.BACKLOG_SYNC.url) ? window.BACKLOG_SYNC : false;
+    return cfg;
+  }
+
+  function api(method, body){
+    var s = sync();
+    return fetch(s.url + "/records", {
+      method: method,
+      cache: "no-store",
+      headers: Object.assign({ authorization: "Bearer " + s.token },
+                             body ? { "content-type": "application/json" } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    });
+  }
+
+  async function seal(data){
+    return b64(await encrypt(key, new TextEncoder().encode(JSON.stringify(data))));
+  }
+  async function open(blob){
+    return JSON.parse(new TextDecoder().decode(await decrypt(key, unb64(blob).buffer)));
+  }
+
+  function readCache(){
+    try {
+      var raw = localStorage.getItem(CACHE);
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) { return null; }
+  }
+  function writeCache(entry){
+    try { localStorage.setItem(CACHE, JSON.stringify(entry)); } catch (err) { /* full or blocked */ }
+  }
+
+  return {
+    sealed: true,
+
+    attach(h){ hooks = h || {}; },
+
+    /*
+     * The Worker is the record; the cache is what makes the app work on a train.
+     * A cache marked dirty holds a session saved while offline, so it is merged
+     * back over what the Worker has and pushed on the way in.
+     */
+    async load(){
+      var cached = readCache();
+      var s = sync();
+
+      var remote = null;
+      if(s){
+        try {
+          var res = await api("GET");
+          if(res.ok){
+            remote = await res.json();
+            version = remote.version;
+          } else if(res.status === 404){
+            version = 0;
+          } else {
+            throw new Error("HTTP " + res.status);
+          }
+        } catch (err) {
+          remote = null;   // offline, or the Worker is down; the cache carries us
+        }
+      }
+
+      var remoteData = remote ? await open(remote.blob) : null;
+      var cachedData = null;
+      if(cached && cached.blob){
+        try { cachedData = await open(cached.blob); }
+        catch (err) { cachedData = null; }   // cache written under an older passphrase
+      }
+
+      if(remote){
+        writeCache({ version: remote.version, updated: remote.updated, blob: remote.blob, dirty: false });
+
+        if(cached && cached.dirty && cachedData && hooks.merge){
+          var merged = hooks.merge(cachedData, remoteData);
+          // Push it now rather than waiting for the next tap, so the offline
+          // session is safe the moment there is signal again.
+          this.save(merged).catch(function(){});
+          return { data: merged, source: "worker" };
+        }
+        return { data: remoteData, source: "worker" };
+      }
+
+      if(cachedData) return { data: cachedData, source: "cache" };
+      return { data: null, source: "empty" };
+    },
+
+    async save(data){
+      var blob = await seal(data);
+      var s = sync();
+
+      // Local first: whatever happens next, this browser has not lost the tap.
+      writeCache({ version: version, updated: new Date().toISOString(), blob: blob, dirty: true });
+
+      if(!s){
+        return { updated: new Date().toISOString() };
+      }
+
+      var res;
+      try {
+        res = await api("PUT", { version: version, blob: blob });
+      } catch (err) {
+        var offline = new Error("no connection");
+        offline.offline = true;
+        throw offline;
+      }
+
+      if(res.status === 409){
+        /* Another device got there first. Merge by day and write the merge,
+           rather than picking a winner and dropping somebody's session. */
+        var theirs = await res.json();
+        version = theirs.version;
+        if(theirs.blob && hooks.merge){
+          var merged = hooks.merge(data, await open(theirs.blob));
+          var mergedBlob = await seal(merged);
+          var again = await api("PUT", { version: version, blob: mergedBlob });
+          if(!again.ok) throw new Error("HTTP " + again.status);
+          var settled = await again.json();
+          version = settled.version;
+          writeCache({ version: version, updated: settled.updated, blob: mergedBlob, dirty: false });
+          if(hooks.onMerged) hooks.onMerged(merged);
+          return settled;
+        }
+        throw new Error("out of step with the archive — reload");
+      }
+
+      if(!res.ok) throw new Error("HTTP " + res.status);
+
+      var done = await res.json();
+      version = done.version;
+      writeCache({ version: version, updated: done.updated, blob: blob, dirty: false });
+      return done;
+    },
+  };
+}
+
+function fail(text){
+  say(text, "err");
+  pw.disabled = go.disabled = false;
+  pw.select();
+  pw.focus();
+}
+
+form.addEventListener("submit", async function(e){
+  e.preventDefault();
+  if(!pw.value || go.disabled) return;
+
+  pw.disabled = go.disabled = true;
+  say("Checking the passphrase…", "busy");
+  await painted();
+
+  var key;
+  try {
+    key = await deriveKey(pw.value);
+  } catch (err) {
+    return fail("Could not derive a key: " + err.message);
+  }
+
+  var payload;
+  try {
+    say("Fetching the app…", "busy");
+    payload = await grab(CONFIG.app);
+  } catch (err) {
+    return fail("Could not fetch the app (" + err.message + ").");
+  }
+
+  var plain;
+  try {
+    say("Decrypting…", "busy");
+    await painted();
+    plain = await decrypt(key, payload);
+  } catch (err) {
+    return fail("That passphrase does not open this log.");
+  }
+
+  var html = new TextDecoder().decode(plain);
+  pw.value = "";
+  window.VAULT = makeVault(key);
+
+  /*
+   * Replace this page with the app in the same top-level document, so it holds
+   * the window that window.VAULT lives on. document.open() clears the document
+   * but keeps the window, so the key survives the swap and never has to be
+   * handed across a frame boundary.
+   */
+  document.open();
+  document.write(html);
+  document.close();
+});
+
+if(!window.isSecureContext || !(window.crypto && crypto.subtle)){
+  pw.disabled = go.disabled = true;
+  say("This page must be served over HTTPS to decrypt the log.", "err");
+}
+})();
+</script>
+
+</body>
+</html>

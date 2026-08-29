@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# This repository is public so that GitHub Pages serves the site for free,
+# which means anything committed here is readable by anyone. The encryption
+# protects what is published; it does nothing for a file sitting in the repo.
+#
+# So the routine and the log stay out, and only sealed versions go in:
+#   routine.json  ->  routine.enc   (committed)
+#   the log       ->  the Worker    (never in git at all)
+# ---------------------------------------------------------------------------
+
+# The routine in the clear. routine.enc is the committed copy.
+routine.json
+
+# The Worker's address and token. These live inside the encrypted app, never
+# in the repository — anyone with them can read and overwrite the stored log.
+worker.json
+
+# Decrypted backups pulled down with backup.py. These are the log in plaintext.
+backups/
+
+# Build output. docs/ is the encrypted site and IS committed; dist/ is the
+# readable build it was made from and must never be.
+dist/
+node_modules/
+
+# Windows "downloaded from the internet" metadata
+*:Zone.Identifier
+*.Identifier
+
+# macOS
+.DS_Store
+
+__pycache__/
+*.pyc
