@@ -13,14 +13,14 @@ if (!fs.existsSync(new URL("./routine.json", import.meta.url))) {
   throw new Error(
     "routine.json is missing.\n\n" +
     "If routine.enc is in the repository, unseal it with the site passphrase:\n" +
-    "    python3 build_site.py --routine-only\n\n" +
+    "    node build_site.mjs --routine-only\n\n" +
     "If this is a fresh start, begin from the sample and edit it:\n" +
     "    cp routine.sample.json routine.json\n"
   );
 }
 
 /*
- * One self-contained HTML file, because build_site.py encrypts the build output
+ * One self-contained HTML file, because build_site.mjs encrypts the build output
  * as a single blob and the unlock page writes it into the document. Nothing may
  * be fetched from a second file at runtime: there is no second file.
  *

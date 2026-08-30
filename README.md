@@ -14,8 +14,8 @@ nowhere to leak from.
 
 ```
 publish.sh              build, encrypt and deploy in one command
-build_site.py           builds the app and encrypts it into docs/
-backup.py               pull the log out of the Worker, or push one back
+build_site.mjs          builds the app and encrypts it into docs/
+backup.mjs              pull the log out of the Worker, or push one back
 gate.html               the unlock page (edit here, not in docs/)
 routine.sample.json     a neutral starting routine, for a fresh setup
 routine.enc             your routine, sealed — the committed copy
@@ -39,8 +39,10 @@ ignores all three.
 
 ```bash
 npm install
-pip install cryptography
 ```
+
+That is the whole toolchain. Node does the encryption too, through `node:crypto`
+— there is no Python, no pip, and nothing to compile.
 
 Then the routine. On a fresh start:
 
@@ -53,7 +55,7 @@ rotation. On a machine that already has `routine.enc` from a previous setup,
 unseal that instead:
 
 ```bash
-python3 build_site.py --routine-only
+node build_site.mjs --routine-only
 ```
 
 Then publish:
@@ -149,31 +151,52 @@ sessions, so it is a bridge across a train tunnel, not a second archive.
 The log has no other copy, so take one:
 
 ```bash
-python3 backup.py                 # -> backups/backlog-2026-08-29-v41.json
-python3 backup.py --list          # what older versions the Worker still holds
-python3 backup.py --snapshot 38   # pull one of them instead
+node backup.mjs                 # -> backups/backlog-2026-08-29-v41.json
+node backup.mjs --list          # what older versions the Worker still holds
+node backup.mjs --snapshot 38   # pull one of them instead
 ```
 
 Every write also keeps the version it replaced, and the last 20 of those survive
 in KV — as unreadable to Cloudflare as the live one. That covers a bad merge or
-a mistake; it does not cover the account going away, which is what `backup.py`
+a mistake; it does not cover the account going away, which is what `backup.mjs`
 is for.
 
 Pushing one back replaces the live log, keeping the replaced version as a
 snapshot:
 
 ```bash
-python3 backup.py --restore backups/backlog-2026-08-29-v41.json
+node backup.mjs --restore backups/backlog-2026-08-29-v41.json
 ```
 
 `backups/` is git-ignored, because what lands there is the log in the clear —
 which days, which loads, how the back felt, and whatever got written in the
 note. Keep it where you keep other things you would not publish.
 
+## On a phone
+
+Termux runs all of this. Node, git and bash are packages; the native pieces the
+build uses (Rollup, Lightning CSS, Tailwind's engine) all ship `android-arm64`
+binaries, so `npm install` resolves them rather than trying to compile.
+
+```bash
+pkg install nodejs git
+termux-setup-storage        # once — grants access to the phone's storage
+```
+
+That second command is what makes the Downloads folder reachable. Android's
+Downloads is not Termux's `~/Downloads`; after granting access it is at
+`~/storage/downloads`, so a `routine.json` saved from a browser or a chat is:
+
+```bash
+cp ~/storage/downloads/routine.json .
+```
+
+Everything else is the same as anywhere else — `./publish.sh` and the rest.
+
 ## Working on it
 
 ```bash
-python3 build_site.py --routine-only   # if routine.json isn't there yet
+node build_site.mjs --routine-only   # if routine.json isn't there yet
 npm run dev
 ```
 
@@ -186,14 +209,14 @@ git-ignored: it is the readable build that `docs/app.bin` is made from.
 
 ## Changing the passphrase
 
-`build_site.py --change-passphrase` re-encrypts the app and the routine under a
+`build_site.mjs --change-passphrase` re-encrypts the app and the routine under a
 new one. It does **not** re-encrypt the log already sitting in the Worker, which
 was sealed under the old key and would become unreadable. Do it in this order:
 
 ```bash
-python3 backup.py                                   # old passphrase
+node backup.mjs                                   # old passphrase
 ./publish.sh --change-passphrase                    # new passphrase
-python3 backup.py --restore backups/backlog-….json  # new passphrase
+node backup.mjs --restore backups/backlog-….json  # new passphrase
 ```
 
 ## What this does and does not protect

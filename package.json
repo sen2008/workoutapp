@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "publish-site": "node build_site.mjs",
+    "routine": "node build_site.mjs --routine-only",
+    "backup": "node backup.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

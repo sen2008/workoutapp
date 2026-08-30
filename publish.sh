@@ -8,11 +8,14 @@
 #
 # It asks for the passphrase rather than reading it from the environment, so it
 # never lands in your shell history. Pass --no-push to build without deploying.
+#
+# Node is the only toolchain here — the build needs it, and node:crypto does the
+# encryption — so this runs anywhere Node does, phone included.
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# --no-push is ours; anything else is forwarded to build_site.py, which is how
+# --no-push is ours; anything else is forwarded to build_site.mjs, which is how
 # --change-passphrase reaches it.
 PUSH=1
 BUILD_ARGS=()
@@ -22,13 +25,21 @@ done
 
 die() { printf '\npublish.sh: %s\n' "$1" >&2; exit 1; }
 
-command -v npm >/dev/null || die "npm is missing. Install Node 18 or newer."
-python3 -c 'import cryptography' 2>/dev/null \
-  || die "cryptography is missing.  pip install cryptography"
+command -v node >/dev/null || die "node is missing.
+  Debian/Ubuntu:  sudo apt install nodejs npm
+  macOS:          brew install node
+  Termux:         pkg install nodejs"
+command -v npm >/dev/null || die "npm is missing — install it alongside Node."
+
+# backup.mjs uses global fetch, which arrived in Node 18.
+NODE_MAJOR=$(node -p 'process.versions.node.split(".")[0]')
+[ "$NODE_MAJOR" -ge 18 ] || die "Node 18 or newer is needed (this is $(node -v))."
+
 [ -d node_modules ] || die "dependencies are not installed.  npm install"
 
-[ -f routine.json ] || [ -f routine.enc ] \
-  || die "neither routine.json nor routine.enc is here — there is no routine to build."
+[ -f routine.json ] || [ -f routine.enc ] || die "neither routine.json nor routine.enc is here.
+Start from the sample and edit it:
+  cp routine.sample.json routine.json"
 
 if [ -z "${BACKLOG_PASSPHRASE:-}" ]; then
   printf 'Passphrase: ' >&2
@@ -41,7 +52,7 @@ fi
 # --- 1. build the app and encrypt it into docs/ ---
 echo
 echo "[1/2] building and encrypting"
-python3 build_site.py ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}
+node build_site.mjs ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}
 
 # The log is only ever in the Worker. A build cannot lose it, but a passphrase
 # change makes it unreadable, so say so rather than let it be discovered later.
