@@ -49,11 +49,17 @@ jobs:
             echo "::error::docs/app.bin is not encrypted. Refusing to publish."
             exit 1
           fi
-          # The unlock page is meant to be readable. Nothing else is.
+          # The unlock page is meant to be readable, and so is CNAME — it only
+          # ever holds the domain name below, which DNS already makes public.
+          # Nothing else is.
           if find docs -type f ! -name 'index.html' ! -name '.nojekyll' \
-               ! -name '*.bin' -print -quit | grep -q .; then
+               ! -name 'CNAME' ! -name '*.bin' -print -quit | grep -q .; then
             echo "::error::docs/ contains files that are neither the unlock page nor ciphertext:"
-            find docs -type f ! -name 'index.html' ! -name '.nojekyll' ! -name '*.bin'
+            find docs -type f ! -name 'index.html' ! -name '.nojekyll' ! -name 'CNAME' ! -name '*.bin'
+            exit 1
+          fi
+          if [ -f docs/CNAME ] && ! grep -qE '^[A-Za-z0-9.-]+$' docs/CNAME; then
+            echo "::error::docs/CNAME doesn't look like a plain domain name. Refusing to publish."
             exit 1
           fi
           # The unlock page carries a salt and an iteration count, never the
