@@ -45,6 +45,13 @@ const ROUTINE = p("routine.json");
 const ROUTINE_ENC = p("routine.enc");
 const DOCS = p("docs");
 
+// The custom domain GitHub Pages serves this from. Written into docs/CNAME on
+// every build: Actions-based Pages deploys (unlike branch-based ones) don't
+// remember a custom domain on their own — omit this file from even one deploy
+// and GitHub drops the domain and falls back to the default *.github.io URL.
+// Not a secret; DNS already makes it public.
+const DOMAIN = "workout.lucaswalker.net";
+
 const ITERATIONS = 600_000;
 const SALT_BYTES = 16;
 const NONCE_BYTES = 12;
@@ -281,6 +288,8 @@ async function main() {
     die("gate.html placeholders did not substitute.");
   }
   changed += write(path.join(DOCS, "index.html"), Buffer.from(gate, "utf8"));
+
+  changed += write(path.join(DOCS, "CNAME"), Buffer.from(DOMAIN + "\n", "utf8"));
 
   // Publish the tree verbatim — no Jekyll pass.
   changed += write(path.join(DOCS, ".nojekyll"), Buffer.alloc(0));

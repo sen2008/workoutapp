@@ -17,9 +17,10 @@ main = "worker/backlog-sync.js"
 compatibility_date = "2026-08-19"
 
 # Only this origin may call the Worker from a browser. Scheme and host only —
-# no path, no trailing slash. Change it if you put the site on your own domain.
+# no path, no trailing slash. Matches docs/CNAME (see build_site.mjs) — change
+# both together if the site ever moves domains.
 [vars]
-ORIGIN = "https://sen2008.github.io"
+ORIGIN = "https://workout.lucaswalker.net"
 
 # The log lives here. `id` is the KV namespace's ID from
 # Storage & Databases -> KV. Replace it with your own.

@@ -69,13 +69,23 @@ routine into `routine.enc`, encrypts the app into `docs/`, and pushes.
 `.github/workflows/pages.yml` uploads `docs/` to Pages and refuses to deploy if
 anything in it turns out to be readable.
 
-That writes three things:
+That writes:
 
 | file | what it is |
 |---|---|
 | `docs/index.html` | the unlock page — the only readable file on the site |
 | `docs/app.bin` | the whole built app, encrypted |
+| `docs/CNAME` | the custom domain (see below) — also plaintext, but that's just DNS |
 | `routine.enc` | `routine.json`, encrypted |
+
+`docs/CNAME` is written on every build from a constant at the top of
+`build_site.mjs`. That's deliberate, not an oversight: a branch-based Pages
+deploy lets you set the custom domain once in Settings and GitHub remembers it,
+but an Actions-based one (what `pages.yml` runs) forgets it the moment a deploy
+ships without the file — so it has to be part of every build, not a one-time
+Settings change. Set the domain in Settings → Pages too; the field there is
+what actually provisions the certificate, `CNAME` is what keeps GitHub from
+dropping the domain on the next publish.
 
 Everything is AES-256-GCM under a key derived from the passphrase with
 PBKDF2-SHA256 at 600,000 iterations. The unlock page carries the salt and the
