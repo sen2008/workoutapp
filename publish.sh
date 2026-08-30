@@ -65,19 +65,33 @@ fi
 echo
 echo "[2/2] publishing"
 git add docs vault.json routine.enc
-if git diff --cached --quiet; then
+staged=1
+git diff --cached --quiet && staged=0
+
+if [ "$staged" = "1" ]; then
+  git diff --cached --stat | tail -1
+
+  if [ "$PUSH" = "0" ]; then
+    echo "staged but not pushed (--no-push). Commit and push when ready."
+    exit 0
+  fi
+
+  git commit -q -m "Update the published tracker"
+fi
+
+[ "$PUSH" = "0" ] && exit 0
+
+# A previous run can have committed successfully and then failed to push — a
+# bad credential, a dropped connection — which leaves nothing staged here even
+# though the site was never actually published. So push whenever HEAD is ahead
+# of its upstream, not only when this run made a fresh commit.
+ahead=$(git rev-list --count '@{u}..HEAD' 2>/dev/null || echo 1)
+if [ "$staged" = "0" ] && [ "$ahead" = "0" ]; then
   echo "nothing changed — the published site is already up to date"
   exit 0
 fi
+[ "$staged" = "0" ] && echo "an earlier commit was never pushed — pushing it now"
 
-git diff --cached --stat | tail -1
-
-if [ "$PUSH" = "0" ]; then
-  echo "staged but not pushed (--no-push). Commit and push when ready."
-  exit 0
-fi
-
-git commit -q -m "Update the published tracker"
 git push -q origin HEAD
 
 echo
