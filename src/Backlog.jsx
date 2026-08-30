@@ -12,7 +12,7 @@ import { SHAPE } from "./merge.js";
  * The routine itself lives in routine.json, which git ignores. What is
  * committed is routine.enc, the same file sealed under the site passphrase — so
  * the cues, the doses and what they say about the person doing them are not
- * readable in a public repository. build_site.py unseals it before the build.
+ * readable in a public repository. build_site.mjs unseals it before the build.
  */
 import SEED from "../routine.json";
 
